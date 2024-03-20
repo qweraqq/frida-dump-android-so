@@ -1,27 +1,17 @@
 # frida-dump-android-so
+## refs
+- [hook dlopen看一下so的加载流程](https://bbs.kanxue.com/thread-277034.htm)
 
 ## How to use
 
-### 1. get dlopen offset
 ```bash
-cp /apex/com.android.runtime/bin/linker64 /data/local/tmp/
-chmod 777 /data/local/tmp/linker64
+python frida-dump-so.py com.abc libDexHelper.so
 ```
 
-```bash
-adb pull /data/local/tmp/linker64
-readelf -sW linker64 | grep do_dlopen
-
-# 216: 000000000003c2c4  2856 FUNC    LOCAL  HIDDEN    10 __dl__Z9do_dlopenPKciPK17android_dlextinfoPKv
-```
-
-### 2. run
-```bash
-python frida-dump-so.py 0x3c2c4 com.abc libDexHelper.so
-```
-
-#### 3. fix so
+fix so
 - [https://github.com/F8LEFT/SoFixer](https://github.com/F8LEFT/SoFixer)
+
+注意: frida inline hook 会在函数开头增加 trampoline
 
 ```bash
 ./SoFixer-Linux-64 -s libDexHelper.so -o libDexHelper-fixed.so -m 0x78017d8000 -d
