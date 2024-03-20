@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import time
 import sys
 import argparse
 import frida
@@ -25,9 +28,9 @@ function hook_JNI_OnLoad(so_name){{
         onEnter(args){{
             console.log(`JNI_OnLoad onEnter: ${{so_name}}`);
             // 也可在JNI_OnLoad进入时dump so
-            // console.log('start: dump so on JNI_OnLoad');
-            // dumpSo(so_name);
-            // console.log('finish: dump so on JNI_OnLoad');
+            console.log('start: dump so on JNI_OnLoad');
+            dumpSo(so_name);
+            console.log('finish: dump so on JNI_OnLoad');
             sleep(10);
         }},
         onLeave: function(retval){{
@@ -36,6 +39,62 @@ function hook_JNI_OnLoad(so_name){{
         }}
     }})
 }}
+
+function hook_constructor() {{
+    let linker = null;
+    if (Process.pointerSize == 4) {{
+        linker = Process.findModuleByName("linker");
+    }} else {{
+        linker = Process.findModuleByName("linker64");
+    }}
+ 
+    let addr_call_function = null;
+    let addr_g_ld_debug_verbosity = null;
+    let addr_async_safe_format_log = null;
+    if (linker) {{
+        //console.log("found linker");
+        let symbols = linker.enumerateSymbols();
+        for (let i = 0; i < symbols.length; i++) {{
+            let name = symbols[i].name;
+            if (name.indexOf("call_function") >= 0) {{
+                addr_call_function = symbols[i].address;
+               // console.log("call_function",JSON.stringify(symbols[i]));
+            }}
+            else if(name.indexOf("g_ld_debug_verbosity") >=0) {{
+                addr_g_ld_debug_verbosity = symbols[i].address;
+                ptr(addr_g_ld_debug_verbosity).writeInt(2);
+            }} else if(name.indexOf("async_safe_format_log") >=0 && name.indexOf('va_list') < 0) {{
+                addr_async_safe_format_log = symbols[i].address;
+            }}
+        }}
+    }}
+    if(addr_async_safe_format_log){{
+        Interceptor.attach(addr_async_safe_format_log,{{
+            onEnter: function(args){{
+                this.log_level  = args[0];
+                this.tag = ptr(args[1]).readCString()
+                this.fmt = ptr(args[2]).readCString() // [Calling / Done calling ...]
+                if(this.fmt.indexOf("c-tor") >= 0){{
+                    this.function_type = ptr(args[3]).readCString(), // func_type
+                    this.so_path = ptr(args[5]).readCString();
+                    var strs = new Array(); //定义一数组
+                    strs = this.so_path.split("/"); //字符分割
+                    this.so_name = strs.pop();
+                    this.func_offset  = ptr(args[4]).sub(Module.findBaseAddress(this.so_name))
+                    // console.log("fmt:", this.fmt, "; func_type:", this.function_type, '; so_name:',this.so_name, '; so_path:',this.so_path, '; func_offset:',this.func_offset);
+                    // hook代码在这加
+                    console.log('start: dump so on ctor');
+                    dumpSo("{so_name}");
+                    console.log('finish: dump so on ctor');
+                    sleep(1);
+                }}
+            }},
+            onLeave: function(retval){{
+            }}
+        }})
+    }}
+}}
+
 
 function hookDlopen() {{
     console.log("start hook dl open");
@@ -64,6 +123,7 @@ function hookDlopen() {{
 }}
 
 setImmediate(hookDlopen);
+setImmediate(hook_constructor);
 """
 
 
@@ -81,21 +141,23 @@ if __name__ == "__main__":
         global module_base
         if message["payload"].startswith("0x"):
             module_base = message["payload"]
-            return    
-        with open(so_name, "wb") as f:
-            f.write(data)
-        print(f"received module base = {module_base}")
+            return
+        
+        if message["payload"].endswith(".so"):
+            with open(f"{time.time()}-{so_name}", "wb") as f:
+                f.write(data)
+            # print(f"received module base = {module_base}")
+            return
         # TODO: auto so fix
 
 
-    try:
-        device = frida.get_usb_device()
-        pid = device.spawn([app_name])
-        session = device.attach(pid)
-        script = session.create_script(ss.format(so_name=so_name))
-        script.on('message', on_message)
-        script.load()
-        device.resume(pid)
-        sys.stdin.read()
-    except Exception as e:
-        print(e)
+
+    device = frida.get_usb_device()
+    pid = device.spawn([app_name])
+    session = device.attach(pid)
+    script = session.create_script(ss.format(so_name=so_name))
+    script.on('message', on_message)
+    script.load()
+    device.resume(pid)
+    sys.stdin.read()
+

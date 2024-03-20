@@ -1,6 +1,7 @@
 # frida-dump-android-so
 ## refs
 - [hook dlopen看一下so的加载流程](https://bbs.kanxue.com/thread-277034.htm)
+- [frida hook init_array](https://bbs.kanxue.com/thread-267430.htm)
 
 ## How to use
 
