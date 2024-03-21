@@ -81,12 +81,15 @@ function hook_constructor() {{
                     strs = this.so_path.split("/"); //字符分割
                     this.so_name = strs.pop();
                     this.func_offset  = ptr(args[4]).sub(Module.findBaseAddress(this.so_name))
-                    // console.log("fmt:", this.fmt, "; func_type:", this.function_type, '; so_name:',this.so_name, '; so_path:',this.so_path, '; func_offset:',this.func_offset);
+                    console.log("fmt:", this.fmt, "; func_type:", this.function_type, '; so_name:',this.so_name, '; so_path:',this.so_path, '; func_offset:',this.func_offset);
                     // hook代码在这加
-                    console.log('start: dump so on ctor');
-                    dumpSo("{so_name}");
-                    console.log('finish: dump so on ctor');
-                    sleep(1);
+                    if(this.so_name.indexOf("{so_name}") >= 0){{
+                        console.log('start: dump so on ctor');
+                        dumpSo("{so_name}");
+                        console.log('finish: dump so on ctor');
+                        sleep(1);
+                    }}
+
                 }}
             }},
             onLeave: function(retval){{
