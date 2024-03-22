@@ -74,23 +74,41 @@ function hook_constructor() {{
                 this.log_level  = args[0];
                 this.tag = ptr(args[1]).readCString()
                 this.fmt = ptr(args[2]).readCString() // [Calling / Done calling ...]
-                if(this.fmt.indexOf("c-tor") >= 0){{
+                if(this.fmt.indexOf("Calling c-tor") >= 0 || this.fmt.indexOf("Done calling c-tor") >=0) {{
                     this.function_type = ptr(args[3]).readCString(), // func_type
                     this.so_path = ptr(args[5]).readCString();
                     var strs = new Array(); //定义一数组
                     strs = this.so_path.split("/"); //字符分割
                     this.so_name = strs.pop();
                     this.func_offset  = ptr(args[4]).sub(Module.findBaseAddress(this.so_name))
-                    console.log("fmt:", this.fmt, "; func_type:", this.function_type, '; so_name:',this.so_name, '; so_path:',this.so_path, '; func_offset:',this.func_offset);
+                    console.log("fmt:", this.fmt, "; func_type:", this.function_type, '; so_name:',this.so_name, '; func_offset:',this.func_offset);
                     // hook代码在这加
                     if(this.so_name.indexOf("{so_name}") >= 0){{
-                        console.log('start: dump so on ctor');
+                        console.log('start: dump so call_function on c-tor');
                         dumpSo("{so_name}");
-                        console.log('finish: dump so on ctor');
+                        console.log('finish: dump so call_function on c-tor');
                         sleep(1);
                     }}
-
                 }}
+
+                if(this.fmt.indexOf("Calling d-tor") >= 0 || this.fmt.indexOf("Done calling d-tor") >= 0){{
+                    this.function_type = ptr(args[3]).readCString(), // func_type
+                    this.so_path = ptr(args[5]).readCString();
+                    var strs = new Array(); //定义一数组
+                    strs = this.so_path.split("/"); //字符分割
+                    this.so_name = strs.pop();
+                    this.func_offset  = ptr(args[4]).sub(Module.findBaseAddress(this.so_name))
+                    console.log("fmt:", this.fmt, "; func_type:", this.function_type, '; so_name:',this.so_name, '; func_offset:',this.func_offset);
+                    // hook代码在这加
+                    if(this.so_name.indexOf("{so_name}") >= 0){{
+                        console.log('start: dump so on call_function d-tor');
+                        dumpSo("{so_name}");
+                        console.log('finish: dump so on call_function d-tor');
+                        sleep(1);
+                    }}
+                }}
+
+
             }},
             onLeave: function(retval){{
             }}
@@ -142,12 +160,17 @@ if __name__ == "__main__":
 
     def on_message(message, data):
         global module_base
+        if not "payload" in message:
+            return
+        
         if message["payload"].startswith("0x"):
             module_base = message["payload"]
             return
         
         if message["payload"].endswith(".so"):
-            with open(f"{time.time()}-{so_name}", "wb") as f:
+            filename = f"{time.time()}-{so_name}"
+            print(f"Saving {filename}")
+            with open(filename, "wb") as f:
                 f.write(data)
             # print(f"received module base = {module_base}")
             return
