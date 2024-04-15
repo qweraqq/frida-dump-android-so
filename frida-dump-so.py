@@ -128,7 +128,7 @@ function hookDlopen() {{
       onLeave: function(retval){{
             console.log(`dlopen onLeave: ${{this.name}}`);
             if (this.name != null && this.name.indexOf('{so_name}') >= 0) {{
-                // hook_JNI_OnLoad(this.name);
+                hook_JNI_OnLoad(this.name);
                 const module = Process.findModuleByName('{so_name}');
                 send(module["base"]);
                 console.log(`{so_name} module base: ${{module["base"]}}`)
@@ -152,6 +152,8 @@ setImmediate(hook_constructor);
 if __name__ == "__main__":
     module_base = None
     parser = argparse.ArgumentParser()
+    parser.add_argument("--host", type=str, help="Specify frida-server host")
+    parser.add_argument("--port", type=str, help="Specify frida-server port")
     parser.add_argument("app_name", type=str, help="specify app name here, e.g. com.abc.abc")
     parser.add_argument("so_name", type=str, help="specify so file here, e.g. libtmp.so")
     args = parser.parse_args()
@@ -176,9 +178,11 @@ if __name__ == "__main__":
             return
         # TODO: auto so fix
 
-
-
-    device = frida.get_usb_device()
+    device = None
+    if args.host is not None and args.port is not None:
+        device = frida.get_device_manager().add_remote_device(f'{args.host}:{ args.port}')
+    else:
+        device = frida.get_usb_device()
     pid = device.spawn([app_name])
     session = device.attach(pid)
     script = session.create_script(ss.format(so_name=so_name))
