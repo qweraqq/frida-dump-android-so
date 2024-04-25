@@ -35,6 +35,9 @@ function hook_JNI_OnLoad(so_name){{
         }},
         onLeave: function(retval){{
             console.log(`JNI_OnLoad onLeave: ${{so_name}}`);
+            console.log('start: dump so on JNI_Leave');
+            dumpSo(so_name);
+            console.log('finish: dump so on JNI_Leave');
             sleep(10);
         }}
     }})
