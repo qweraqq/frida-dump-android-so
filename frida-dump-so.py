@@ -6,7 +6,8 @@ import argparse
 import frida
 
 ss = """
-const sleep = new NativeFunction(Module.getExportByName('libc.so', 'sleep'), 'uint', ['uint']);
+const libc = Process.getModuleByName('libc.so');
+const sleep = new NativeFunction(libc.getExportByName('sleep'), 'uint', ['uint']);
 
 function dumpSo(so_name){{
     const libso = Process.findModuleByName(so_name);
@@ -19,10 +20,10 @@ function dumpSo(so_name){{
     send(so_name, libso_buffer);
 }}
 
-function hook_JNI_OnLoad(so_name){{
+function hookJNIOnLoad(so_name){{
     const module = Process.findModuleByName(so_name);
     console.log(`${{so_name}} module base: ${{module["base"]}}`)
-    const JNI_OnLoad = Module.getExportByName(so_name, 'JNI_OnLoad');
+    const JNI_OnLoad = module.getExportByName('JNI_OnLoad');
     console.log(`${{so_name}} JNI_OnLoad addr: ${{JNI_OnLoad}}`)
     Interceptor.attach(JNI_OnLoad, {{
         onEnter(args){{
@@ -43,7 +44,7 @@ function hook_JNI_OnLoad(so_name){{
     }})
 }}
 
-function hook_constructor() {{
+function hookConstructor() {{
     let linker = null;
     if (Process.pointerSize == 4) {{
         linker = Process.findModuleByName("linker");
@@ -122,7 +123,7 @@ function hook_constructor() {{
 
 function hookDlopen() {{
     console.log("start hook dl open");
-    const android_dlopen_ext = Module.findExportByName(null, "android_dlopen_ext");
+    const android_dlopen_ext = Module.findGlobalExportByName("android_dlopen_ext");
     Interceptor.attach(android_dlopen_ext, {{
       onEnter: function(args){{
         this.name = args[0].readCString();
@@ -131,11 +132,11 @@ function hookDlopen() {{
       onLeave: function(retval){{
             console.log(`dlopen onLeave: ${{this.name}}`);
             if (this.name != null && this.name.indexOf('{so_name}') >= 0) {{
-                hook_JNI_OnLoad(this.name);
+                hookJNIOnLoad(this.name);
                 const module = Process.findModuleByName('{so_name}');
                 send(module["base"]);
                 console.log(`{so_name} module base: ${{module["base"]}}`)
-                const JNI_OnLoad = Module.getExportByName('{so_name}', 'JNI_OnLoad');
+                const JNI_OnLoad = module.getExportByName('JNI_OnLoad');
                 console.log(`{so_name} JNI_OnLoad addr: ${{JNI_OnLoad}}`)
                 console.log('start: dump so on dl_open leave');
                 dumpSo("{so_name}");
@@ -147,7 +148,7 @@ function hookDlopen() {{
 }}
 
 setImmediate(hookDlopen);
-setImmediate(hook_constructor);
+setImmediate(hookConstructor);
 """
 
 
